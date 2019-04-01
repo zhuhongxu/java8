@@ -1,0 +1,177 @@
+一、什么是Lambda表达式？
+    顾名思义，Lambda表达式的本质是一个表达式，与普通的表达式不同的是，Lambda表达式向我们表达的是一个函数，即通过一个Lambda表达式，
+    我们可以看到他的参数列表、函数主体、返回类型、抛出的异常列表，需要注意的是这个函数是匿名的。
+    Lambda表达式的基本语法是：
+        (parameters) -> expression
+        或者
+        (parameters) -> {expression;}
+        eg：() -> "Raoul"，改Lambda表达式想说的是，这里有一个匿名函数，它不需要请求参数，它的返回值是一个字符串"Raoul"；我们并没有
+        写return "Raoul"，为什么它就返回"Raoul"呢？答案是这是类型推导的结果。
+二、什么是函数式接口？
+    举个例子：
+    我们有一个List<Apple> list，现在我们想找出这个list中所有红色的苹果，所以我们定义如下函数：
+    filter(List<Apple> list, String color){
+        List<Apple> resultList = new ArrayList<Apple>();
+        for(Apple apple : list){
+           if(apple.getColor().equals("color")){
+            resultList.add(apple);
+           }
+        }
+        return resultList;
+    }
+    List<Apple> resultList = filter(list, "red");
+    现在有新的需求了，我们想找到红色的并且重量大于150g的所有苹果，我们可以把filter函数改造一下：
+    filter(List<Apple> list, String color, Integer weight){
+            List<Apple> resultList = new ArrayList<Apple>();
+            for(Apple apple : list){
+               if(apple.getColor().equals("color") && apple.getWeight() > weight){
+                resultList.add(apple);
+               }
+            }
+            return resultList;
+    }
+    List<Apple> resultList = filter(list, "red", "150");
+    现在有新的需求了，我们想找到红色的并且重量大于150g并且是产地是山东的的所有苹果，我们可以把filter函数改造一下：
+    filter(List<Apple> list, String color, Integer weight, String province){
+            List<Apple> resultList = new ArrayList<Apple>();
+            for(Apple apple : list){
+               if(apple.getColor().equals("color") && apple.getWeight() > weight && apple.getProvince().equals(province)){
+                resultList.add(apple);
+               }
+            }
+            return resultList;
+    }
+    List<Apple> resultList = filter(list, "red", "150", "山东");
+    现在有新的需求了，我们想找到红色的并且重量大于150g并且是产地是山东并且。。。。的的所有苹果，我们可以把filter函数改造一下：
+    。。。。。。。
+    于是乎我们不断在改造filter函数，改造了filter之后，之前的代码也不能通过编译，需要重新修改，这严重的侵入了我们之前的代码，使得系统越来
+    越复杂，于是，我们提出了行为参数化这一概念：
+    public interface ApplePredicate{
+        boolean test(Apple apple, Object condition);
+    }
+    public class AppleWeightPredicate implements ApplePredicate{
+        Object condition;
+        public AppleWeightPredicate(Object condition){
+            this.condition = condition;
+        }
+        public boolean test(Apple apple, Object condition){
+                return apple.getWeight() > condition;
+        }
+    }
+    public class AppleColorPredicate implements ApplePredicate{
+        Object condition;
+        public AppleColorPredicate(Object condition){
+            this.condition = condition;
+        }
+        public boolean test(Apple apple, Object condition){
+            return condition.toString().equals(apple.getColor());
+        }
+    }
+    filter(List<Apple> list, String color, List<ApplePredicate> predicates){
+            List<Apple> resultList = new ArrayList<Apple>();
+            for(Apple apple : list){
+               if(ifWholeTrue(apple, predicates)){
+                resultList.add(apple);
+               }
+            }
+            return resultList;
+    }
+    /**
+     * 判断这个苹果是否满足所有的条件
+     * @param apple
+     * @param predicates
+     * @return
+     */
+    static boolean ifWholeTrue(Apple apple, List<ApplePredicate> predicates){
+        Boolean[] all = new Boolean[predicates.size()];
+        for (int i = 0; i < predicates.size(); i++){
+            all[i] = predicates.get(i).test(apple);
+        }
+        boolean result = true;
+        for (Boolean flag : all){
+            if (!flag){
+                return false;
+            }
+        }
+        return result;
+    }
+    经过这样的改造，当我们想找出红色的苹果：
+    List<Apple> resultList = filter(list, Arrays.asList(new AppleColorPredicate("红色")));
+    当我们想找到红色的并且重量大于150g的苹果：
+    List<Apple> resultList = filter(list, Arrays.asList(new AppleColorPredicate("红色"), new AppleWeightPredicate(150)));
+    也就是说，我们将之前对代码侵入很大的条件抽象为一个predicates参数了，也就是把具体的行为参数化了，这就叫做行为参数化，其中，
+    ApplePredicate这个接口我们称之为函数式接口。那函数式接口的具体定义是什么呢？
+    一言以蔽之，函数式接口就是只定义一个抽象方法的接口。
+三、Lambda表达式和函数式接口有什么关系呢？
+    Lambda表达式允许你直接通过内联的方式为函数式接口的抽象方法提供实现，并把整个表达式作为函数式接口的实例。
+    话不多说，上代码，eg，创建一个线程，并且打印hello world：
+    public static void main(String[] args) {
+        Runnable r1 = () -> System.out.println("Hello World");
+        r1.run();
+    }
+    这段代码是什么意思呢？
+    这里有一个Runnable函数式接口，它只有一个抽象方法：
+    @FunctionalInterface
+    public interface Runnable {
+        /**
+         * When an object implementing interface <code>Runnable</code> is used
+         * to create a thread, starting the thread causes the object's
+         * <code>run</code> method to be called in that separately executing
+         * thread.
+         * <p>
+         * The general contract of the method <code>run</code> is that it may
+         * take any action whatsoever.
+         *
+         * @see     java.lang.Thread#run()
+         */
+        public abstract void run();
+    }
+    然后我们通过Lambda表达式() -> System.out.println("Hello World");为唯一的抽象方法提供了实现，该Lambda表达式想说的是我实现了你
+    唯一的接口run，我不需要参数，我的返回值为void，System.out.println("Hello World")是我的函数体，这里就应了上面的那一句话：
+    Lambda表达式允许你直接通过内联的方式为函数式接口的抽象方法提供实现，并把整个表达式作为函数式接口的实例。
+    当然了，我们使用匿名内部类也可以实现同样的效果:
+    public static void main(String[] args) {
+        Runnable r1 = new Runnable() {
+            @Override
+            public void run() {
+                System.out.println("Hello World");
+            }
+        };
+        r1.run();
+    }
+    孰优孰劣一看便知。
+四、java8内置的函数式接口：
+    通过三我们了解到了Lambda表达式的强大之处，但问题是，我们总是需要一个函数式接口才可以完成这件事，鉴于此，java8内置了一些常用的函数式
+    接口，使用它们，可以解决我们开发中的大部分问题，它们位于java.util.function包中。
+    1》java.util.function.Predicate<T>
+    接口定义了一个名叫test的抽象方法，它接受泛型 T对象，并返回一个boolean。这恰恰和你先前创建的一样，现在就可以直接使用了。在你需要
+    表示一个涉及类型T的布尔表达式时，就可以使用这个接口，eg：com.zhx.lambda.TestPredicate
+    2》java.util.function.Consumer<T>
+    接口定义了一个名叫accept的抽象方法，它接受泛型T 的对象，没有返回(void)。你如果需要访问类型T的对象，并对其执行某些操作，就可以使用
+    这个接口，eg：com.zhx.lambda.TestConsumer
+    3》java.util.function.Function<T, R>
+    接口定义了一个叫作apply的方法，它接受一个 泛型T的对象，并返回一个泛型R的对象。如果你需要定义一个Lambda，将输入对象的信息映射到输出，
+    就可以使用这个接口，eg：com.zhx.lambda.TestFunction
+五、方法引用
+    方法引用可以被看作仅仅调用特定方法的Lambda的一种快捷写法。它的基本思想是，如果一个Lambda代表的只是“直接调用这个方法”，那最好还是
+    用名称来调用它，而不是去描述如何调用它。事实上，方法引用就是让你根据已有的方法实现来创建 Lambda表达式。但是，显式地指明方法的名称，
+    你的代码的可读性会更好，eg：Apple::getWeight等价于(Apple a) -> a.getWeight()
+    注意：Apple::getWeight后面一定不要加括号，因为它只是一个声明，不涉及到具体调用。
+    这里有一个List排序的例子来更好地理解上述概念：com.zhx.lambda.TestSort
+六、复合Lambda表达式
+    1》比较器复合
+    在com.zhx.lambda.TestSort中，我们只演示了正序的场景，实际应用中肯定没这么简单，那么就要用到比较器复合了，eg：
+    com.zhx.lambda.recombine.SorterRecombine
+    2》谓词复合
+    是否还记得，在com.zhx.lambda.TestPredicate.filter方法中，我们使用了一个函数接口可变数组来作为一个参数，然后专门写了一个看似复杂的
+    ifWholeTrue函数来判断当前的apple是否满足所有的条件，如果我们使用了谓词复合将多个Lambda表达式合并在一起，则不用这么麻烦，eg:
+    com.zhx.lambda.recombine.PredicateRecombine
+    3》函数复合
+    你还可以把Function接口所代表的Lambda表达式复合起来。Function接口为此配 了andThen和compose两个默认方法，它们都会返回Function的
+    一个实例，感觉用的场景比较少，这里不写具体的例子了。
+
+
+
+
+
+
