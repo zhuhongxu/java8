@@ -1,0 +1,173 @@
+该package的名字为stream，意味着是描述stream的一些常见用法，但与其说是stream api，倒不如说是函数式处理数据，因为从stream api层面看来
+看，我们全是在用函数式的思想编程。
+一、stream的遍历？
+    一个stream只能遍历一次，否则会抛出异常如果想再遍历一次，只能再生成一次数据流。
+    eg:com.zhx.stream.OnlyForeachOnce
+    初次接触stream，例子中的代码看起来可能一头雾水，下面会逐一娓娓道来。
+二、List.stream()是什么意思？
+    1》该方法定义在java.util.Collection接口中
+    default Stream<E> stream() {
+            return StreamSupport.stream(spliterator(), false);
+    }
+    2》返回的Stream对象可以做什么事呢？
+    需要注意的是，list.stream()返回的对象是java.util.stream.Stream类型的，并不是java.io包中的各种输入熟出流，java.util.stream.Stream
+    接口主要定义了以下几类抽象方法：
+    /**
+     * Returns a stream consisting of the elements of this stream that match the given predicate.
+     * （返回一个包含匹配我们给定的Predicate的元素的流）
+     *
+     /
+    Stream<T> filter(Predicate<? super T> predicate);
+
+    /**
+     * Returns a stream consisting of the results of applying the given function to the elements of this stream.
+     * （返回一个包含经过Function处理后返回的元素的流）
+     *
+     /
+    <R> Stream<R> map(Function<? super T, ? extends R> mapper);
+
+    /**
+     * Returns a stream consisting of the distinct elements (according to {@link Object#equals(Object)}) of this stream.
+     * （返回一个去重之后的流，去重的依据是Object的equals方法）
+     *
+     /
+    Stream<T> distinct();
+
+
+    /**
+     * Returns a stream consisting of the elements of this stream, sorted according to the provided {@code Comparator}.
+     * （返回一个排序之后的流，排序的依据是给定的Comparator）
+     *
+     /
+    Stream<T> sorted(Comparator<? super T> comparator);
+
+    /**
+     * Returns a stream consisting of the elements of this stream, truncated to be no longer than {@code maxSize} in length.
+     * （返回截断后的流，只取maxsize个元素）
+     *
+     /
+    Stream<T> limit(long maxSize);
+
+    /**
+     * Performs an action for each element of this stream.
+     * （遍历流，并对每个元素做Consumer操作）
+     *
+     /
+    void forEach(Consumer<? super T> action);
+
+    <R> R collect(Supplier<R> supplier, BiConsumer<R, ? super T> accumulator, BiConsumer<R, R> combiner);
+
+    Stream<T> peek(Consumer<? super T> action);
+
+    Stream<T> skip(long n);
+
+    Object[] toArray();
+
+    T reduce(T identity, BinaryOperator<T> accumulator);
+
+    long count();
+
+    Optional<T> findFirst();
+
+    。。。。。。
+
+    之后会对这里面常用的方法逐一介绍；
+    3》在我们的例子中，调用了foreach这个方法，然后传递了Consumer函数式接口的实现，从而做到了打印每个元素（如果不明白背后的原理，
+    可以回过头看看com.zhx.lambda.tips）
+三、筛选、去重
+    Streams接口支持filter方法，该操作会接受一个谓词(一个返回 boolean的函数)作为参数，并返回一个包括所有符合谓词的元素的流，
+    也支持distinct()方法对流中的数据去重。
+    eg：com.zhx.stream.FilterAndDistinct
+四、映射
+    在上一个例子中，我们使用了map，其实这就是映射，其实，从map函数的参数Function中的抽象方法：
+    R apply(T t)
+    中也可以看出apply的作用就是把一个对象转换为另一个对象，也就是映射，而map函数则负责收集每一个映射，然后返回所有映射对应的集合的流。
+五、匹配
+    1》另一个常见的数据处理套路是看看数据集中的某些元素是否匹配一个给定的属性。Stream api通过allMatch、anyMatch、noneMatch方法提供了
+    这样的工具。
+    anyMatch方法可以回答“流中是否有一个元素能匹配给定的谓词;
+    allMatch方法的工作原理和anyMatch类似，但它会看看流中的元素是否都能匹配给定的谓词;
+    和allMatch相对的是noneMatch。它可以确保流中没有任何元素与给定的谓词匹配;
+    eg：com.zhx.stream.Match
+六、归约
+    将流中所有元素反复结合起来，得到一个值，比如一个Integer。这样的查询可以被归类为归约操作 (将流归约成一个值)。用函数式编程语言的术语
+    来说，这称为折叠(fold)，因为你可以将这个操作看成把一张长长的纸(你的流)反复折叠成一个小方块，而这就是折叠操作的结果。
+    想象一下，这里有一个List<Integer>的集合，里面装着1, 2, 3....10，现在要求求出所有数值的和，于是有以下代码：
+    int sum = 0;
+    for(int each : list){
+        sum += each;
+    }
+    现在需求要求求出另一个List<Integer>中所有元素的乘积，那该怎么复用上面的代码呢？显然很难，这便是reduce函数的意义所在：
+    T reduce(T identity, BinaryOperator<T> accumulator);
+    BinaryOperator中的抽象方法为：
+    R apply(T t, U u);
+    identity的意思是初始值，在上例中就是int sum = 0中的0，那么此时求所有元素的和就是：
+    list.stream().reduce(1, (a, b) -> a + b);
+    求所有元素的乘积就是：
+    list.stream().reduce(1, (a, b) -> a * b);
+    如果希望求最大值最小值，则可以使用这个api：
+    Optional<T> reduce(BinaryOperator<T> accumulator);
+    关于Optional类，以后再讨论。
+七、用流收集数据
+    事实上，用流收集数据应该属于归约的范畴，但由于这一块内容太重要了并且比较多，所以单独列举出来。
+    1》初体验，这里有一个Apple对象，属性有省份，颜色，重量，现在有一个List<Apple> list，我想按照省份给这个lis分组：
+    jdk7：
+    private static Map<String, List<Apple>> groupByProvince(List<Apple> list){
+        Map<String, List<Apple>> map = new HashMap<>();
+        for (Apple apple : list){
+            String province = apple.getProvince();
+            List<Apple> templeList = null;
+            if (map.containsKey(province)){
+                templeList = map.get(province);
+            } else {
+                templeList = new ArrayList<>();
+                map.put(province, templeList);
+            }
+            templeList.add(apple);
+        }
+        return map;
+    }
+    jdk8：
+    list.stream().collect(groupingBy(Apple::getProvince))
+    这只是一级分组，如果是二级三级分组，如果不使用函数式处理数据，繁琐程度可想而知。
+    2》用流收集收据，用的是Stream接口中的collect抽象方法：
+    <R> R collect(Supplier<R> supplier, BiConsumer<R, ? super T> accumulator, BiConsumer<R, R> combiner);
+    <R, A> R collect(Collector<? super T, A, R> collector);
+    看第二个抽象方法，需要传进去一个Collector的实现，为了方便，在java.util.stream.Collectors中为我们提供了一些现成的实现，我们直接
+    调用相关方法就可以构建出Collector的实现，可以大致看下这个类中一些常用的方法：
+    public static <T> Collector<T, ?, List<T>> toList() {
+        return new CollectorImpl<>((Supplier<List<T>>) ArrayList::new, List::add,
+                                   (left, right) -> { left.addAll(right); return left; },
+                                   CH_ID);
+    }
+
+    public static <T> Collector<T, ?, Set<T>> toSet() {
+        return new CollectorImpl<>((Supplier<Set<T>>) HashSet::new, Set::add,
+                                   (left, right) -> { left.addAll(right); return left; },
+                                   CH_UNORDERED_ID);
+    }
+
+    public static <T> Collector<T, ?, Long> counting() {
+        return reducing(0L, e -> 1L, Long::sum);
+    }
+
+    public static <T, U, A, R> Collector<T, ?, R> mapping(Function<? super T, ? extends U> mapper,
+                                   Collector<? super U, A, R> downstream) {
+        BiConsumer<A, ? super U> downstreamAccumulator = downstream.accumulator();
+        return new CollectorImpl<>(downstream.supplier(),
+                                   (r, t) -> downstreamAccumulator.accept(r, mapper.apply(t)),
+                                   downstream.combiner(), downstream.finisher(),
+                                   downstream.characteristics());
+    }
+    。。。。。。
+    我们可以将java.util.stream.Collectors称为java.util.stream.Collector的工厂类。
+
+
+
+
+
+
+
+
+
+
