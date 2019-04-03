@@ -133,34 +133,100 @@
     2》用流收集收据，用的是Stream接口中的collect抽象方法：
     <R> R collect(Supplier<R> supplier, BiConsumer<R, ? super T> accumulator, BiConsumer<R, R> combiner);
     <R, A> R collect(Collector<? super T, A, R> collector);
-    看第二个抽象方法，需要传进去一个Collector的实现，为了方便，在java.util.stream.Collectors中为我们提供了一些现成的实现，我们直接
-    调用相关方法就可以构建出Collector的实现，可以大致看下这个类中一些常用的方法：
-    public static <T> Collector<T, ?, List<T>> toList() {
-        return new CollectorImpl<>((Supplier<List<T>>) ArrayList::new, List::add,
-                                   (left, right) -> { left.addAll(right); return left; },
-                                   CH_ID);
-    }
+    看第二个抽象方法，需要传进去一个Collector的实现，来看一下java.util.stream.Collector接口
+    /**
+     * A function that creates and returns a new mutable result container.
+     * （建立结果容器）
+     */
+    Supplier<A> supplier();
 
-    public static <T> Collector<T, ?, Set<T>> toSet() {
-        return new CollectorImpl<>((Supplier<Set<T>>) HashSet::new, Set::add,
-                                   (left, right) -> { left.addAll(right); return left; },
-                                   CH_UNORDERED_ID);
-    }
+    /**
+     * A function that folds a value into a mutable result container.
+     * （累加的具体逻辑，并将累加的结果加入结果容器）
+     */
+    BiConsumer<A, T> accumulator();
 
-    public static <T> Collector<T, ?, Long> counting() {
-        return reducing(0L, e -> 1L, Long::sum);
-    }
+    /**
+     * A function that accepts two partial results and merges them.  The combiner function may fold state from one
+     * argument into the other and return that, or may return a new result container.
+     * （并行计算时，用于合并不同流的结果，可以将合并的结果返回，也可以新建一个结果容器返回）
+     */
+    BinaryOperator<A> combiner();
 
-    public static <T, U, A, R> Collector<T, ?, R> mapping(Function<? super T, ? extends U> mapper,
-                                   Collector<? super U, A, R> downstream) {
-        BiConsumer<A, ? super U> downstreamAccumulator = downstream.accumulator();
-        return new CollectorImpl<>(downstream.supplier(),
-                                   (r, t) -> downstreamAccumulator.accept(r, mapper.apply(t)),
-                                   downstream.combiner(), downstream.finisher(),
-                                   downstream.characteristics());
+    /**
+     * Perform the final transformation from the intermediate accumulation type {@code A} to the final result type {@code R}.
+     * （累加的具体逻辑执行完之后，要执行该函数，将累加的结果转换为结果类型）
+     */
+    Function<A, R> finisher();
+
+    /**
+     * Returns a {@code Set} of {@code Collector.Characteristics} indicating the characteristics of this Collector.This set should be immutable.
+     * （返回一个不可变的Characteristics的集合，它定义了收集器的行为，尤其是关于流是否可以并行归约，以及可以使用哪些优化的提示）
+     */
+    Set<Characteristics> characteristics();
+
+    /**
+     * Characteristics indicating properties of a {@code Collector}, which can be used to optimize reduction implementations.
+     * （归约时的优化指标）
+     */
+    enum Characteristics {
+        //集合支持并发归约
+        CONCURRENT,
+
+        //归约结果不受流中项目的遍历和累积顺序的影响
+        UNORDERED,
+
+        //finisher function可以被取消，并且将A转换为R是安全的
+        IDENTITY_FINISH
     }
-    。。。。。。
-    我们可以将java.util.stream.Collectors称为java.util.stream.Collector的工厂类。
+    3》为了方便，在java.util.stream.Collectors中为我们提供了一些现成的实现，我们直接
+      调用相关方法就可以构建出Collector的实现，可以大致看下这个类中一些常用的方法：
+
+      /**
+       * 将结果归约为ArrayList，根据之前对Collector接口的解析，这里可以剖析一下该方法的具体实现：
+       * 结果容器为ArrayList::new
+       * 累加逻辑为List::add
+       * 合并逻辑为(left, right) -> { left.addAll(right); return left; }
+       * 优化策略为IDENTITY_FINISH
+       */
+      public static <T> Collector<T, ?, List<T>> toList() {
+          return new CollectorImpl<>((Supplier<List<T>>) ArrayList::new, List::add,
+                                     (left, right) -> { left.addAll(right); return left; },
+                                     CH_ID);
+      }
+
+      /**
+       * 归约结果为HashSet
+       */
+      public static <T> Collector<T, ?, Set<T>> toSet() {
+          return new CollectorImpl<>((Supplier<Set<T>>) HashSet::new, Set::add,
+                                     (left, right) -> { left.addAll(right); return left; },
+                                     CH_UNORDERED_ID);
+      }
+
+      /**
+       * 计算数量，归约结果为Long
+       */
+      public static <T> Collector<T, ?, Long> counting() {
+          return reducing(0L, e -> 1L, Long::sum);
+      }
+
+      public static <T, U, A, R> Collector<T, ?, R> mapping(Function<? super T, ? extends U> mapper,
+                                     Collector<? super U, A, R> downstream) {
+          BiConsumer<A, ? super U> downstreamAccumulator = downstream.accumulator();
+          return new CollectorImpl<>(downstream.supplier(),
+                                     (r, t) -> downstreamAccumulator.accept(r, mapper.apply(t)),
+                                     downstream.combiner(), downstream.finisher(),
+                                     downstream.characteristics());
+      }
+      。。。。。。
+      我们可以将java.util.stream.Collectors称为java.util.stream.Collector的工厂类。
+      一个常见归约操作的例子，eg：com.zhx.stream.Collect
+
+
+
+
+
 
 
 
